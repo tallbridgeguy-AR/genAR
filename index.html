@@ -30,18 +30,19 @@
         padding: 12px 20px; border-radius: 30px; font-family: sans-serif;
         font-weight: bold; cursor: pointer; font-size: 14px;
         transition: 0.2s;
+        -webkit-tap-highlight-color: transparent;
       }
       .btn:active { background: white; color: black; }
     </style>
 
     <script>
       // --- EASY SWAP CONFIGURATION ---
+      // Ensure the order here matches the order of images in your .mind file
       const TARGETS = [
         { name: "Trex",    modelSrc: "roar4.glb",   scale: "1 1 1",   pos: "0 0.1 0" },
         { name: "Combine", modelSrc: "combine.glb", scale: "0.5 0.5 0.5", pos: "0 0.2 0" },
         { name: "Toaster", modelSrc: "toaster.glb", scale: "1.5 1.5 1.5", pos: "0 0 0" }
       ];
-      // -------------------------------
 
       // Drag to Rotate Component
       AFRAME.registerComponent('drag-rotate', {
@@ -90,10 +91,9 @@
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       
-      <a-entity light="type: hemisphere; intensity: 3"></a-entity>
-      <a-entity light="type: directional; intensity: 2" position="-1 2 1"></a-entity>
-
-      </a-scene>
+      <a-entity light="type: hemisphere; intensity: 2.0"></a-entity>
+      <a-entity light="type: directional; intensity: 1.5" position="-1 2 1"></a-entity>
+    </a-scene>
 
     <script>
       const sceneEl = document.querySelector('a-scene');
@@ -102,22 +102,19 @@
       const scanText = document.querySelector('#scanning-text');
       let isVertical = false;
 
-      // Initialize the scene
       sceneEl.addEventListener('loaded', () => {
-        console.log("AR Scene Loaded Successfully");
-        
         TARGETS.forEach((config, index) => {
-          // 1. Create the Asset Reference
+          // 1. Create Asset Reference
           const asset = document.createElement('a-asset-item');
           asset.setAttribute('id', `model-${index}`);
           asset.setAttribute('src', config.modelSrc);
           assetContainer.appendChild(asset);
 
-          // 2. Create the AR Target Entity
+          // 2. Create AR Target Entity
           const target = document.createElement('a-entity');
           target.setAttribute('mindar-image-target', `targetIndex: ${index}`);
 
-          // 3. Create the GLB Model Entity
+          // 3. Create Model Entity
           const model = document.createElement('a-gltf-model');
           model.setAttribute('src', `#model-${index}`);
           model.setAttribute('rotation', '90 0 0');
@@ -126,35 +123,19 @@
           model.setAttribute('drag-rotate', '');
           model.setAttribute('animation-mixer', '');
           
-          // MATERIAL FIX: Ensures metallic models don't appear black
-          model.addEventListener('model-loaded', () => {
-            const mesh = model.getObject3D('mesh');
-            mesh.traverse((node) => {
-              if (node.isMesh) {
-                node.material.metalness = 0; // Fixes the "black" look on shiny models
-                node.material.roughness = 1; 
-                node.material.needsUpdate = true;
-              }
-            });
-          });
-
-          // Append everything
           target.appendChild(model);
           sceneEl.appendChild(target);
 
-          // Handle UI Overlay hiding/showing
+          // Visibility Toggles
           target.addEventListener("targetFound", () => { overlay.classList.add("hidden"); });
           target.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
         });
 
-        // Update scan text with names from CONFIG
         const namesList = TARGETS.map(t => t.name).join(", ");
         scanText.innerText = "Point camera at:\n" + namesList;
       });
 
-      // --- BUTTON CONTROLS ---
-
-      // Zoom Controls
+      // Zoom functionality
       document.querySelector('#zIn').addEventListener('click', () => adjustZoom(0.15));
       document.querySelector('#zOut').addEventListener('click', () => adjustZoom(-0.15));
       
@@ -165,7 +146,7 @@
         });
       }
 
-      // Orientation Toggle
+      // Vertical/Flat Rotation Toggle
       document.querySelector('#toggleMode').addEventListener('click', function() {
         isVertical = !isVertical;
         this.innerText = isVertical ? "Switch Flat" : "Switch Vertical";
