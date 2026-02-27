@@ -6,85 +6,172 @@
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
     
-    <script>
-      // DRAG ROTATE COMPONENT
-      AFRAME.registerComponent('drag-rotate', {
-        schema: { speed: {default: 2} },
-        init: function() {
-          this.ifMouseDown = false;
-          this.x_cord = 0;
-          const handleStart = (x) => { this.ifMouseDown = true; this.x_cord = x; };
-          const handleEnd = () => { this.ifMouseDown = false; };
-          const handleMove = (x) => {
-            if(this.ifMouseDown) {
-              let temp_x = x - this.x_cord;
-              this.el.object3D.rotateY(temp_x * (this.data.speed / 1000));
-              this.x_cord = x;
-            }
-          };
-          document.addEventListener('mousedown', (e) => handleStart(e.clientX));
-          document.addEventListener('touchstart', (e) => handleStart(e.touches[0].clientX));
-          document.addEventListener('mouseup', handleEnd);
-          document.addEventListener('touchend', handleEnd);
-          document.addEventListener('mousemove', (e) => handleMove(e.clientX));
-          document.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX));
-        }
-      });
-    </script>
-
     <style>
-      body { margin: 0; overflow: hidden; }
+      body { margin: 0; overflow: hidden; font-family: sans-serif; }
       
-      /* Updated scanning overlay for better visibility */
-      #scanning-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.5); /* Semi-transparent so you see camera feed */
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
-        color: white; font-family: sans-serif; z-index: 99;
-        pointer-events: none;
+      /* THE LAUNCH SCREEN - Fixes browser permission blocks */
+      #launch-screen {
+        position: fixed; inset: 0; background: #121212; 
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        z-index: 2000; color: white; text-align: center; padding: 20px;
       }
-      #scanning-overlay.hidden { display: none !important; }
+      #start-btn {
+        background: #27ae60; color: white; border: none; padding: 15px 40px;
+        font-size: 1.2rem; font-weight: bold; border-radius: 50px; cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: transform 0.2s;
+      }
+      #start-btn:active { transform: scale(0.95); }
 
+      /* SCANNING OVERLAY */
+      #scanning-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+        display: flex; justify-content: center; align-items: center;
+        color: white; z-index: 99; pointer-events: none;
+      }
+      #scanning-overlay.hidden { display: none; }
+
+      /* UI CONTROLS */
       #ui-container {
-        position: fixed; bottom: 20px; left: 50%;
-        transform: translateX(-50%); z-index: 100;
-        display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
-        width: 90%;
+        position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%);
+        z-index: 100; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: 95%;
       }
       .btn {
-        background: rgba(0, 0, 0, 0.7); color: white; border: 2px solid white;
-        padding: 12px 18px; border-radius: 30px; font-family: sans-serif;
-        font-weight: bold; cursor: pointer; -webkit-tap-highlight-color: transparent;
-        font-size: 14px;
+        background: rgba(0, 0, 0, 0.8); color: white; border: 1px solid rgba(255,255,255,0.4);
+        padding: 10px 15px; border-radius: 8px; font-size: 13px; cursor: pointer;
       }
-      .btn:active { background: white; color: black; }
-      #screenshotBtn { background: #27ae60; border-color: #2ecc71; }
+      #screenshotBtn { background: #27ae60; font-weight: bold; }
 
+      /* FLASH */
       .flash {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: white; z-index: 1000; opacity: 0; pointer-events: none;
+        position: fixed; inset: 0; background: white; z-index: 1000; opacity: 0; pointer-events: none;
       }
       .flash.active { animation: flash-anim 0.3s ease-out; }
-      @keyframes flash-anim { 
-        0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } 
-      }
+      @keyframes flash-anim { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
     </style>
   </head>
   <body>
 
+    <div id="launch-screen">
+      <h2>AR Experience</h2>
+      <p>Camera access is required for Augmented Reality.</p>
+      <button id="start-btn">ALLOW CAMERA & START</button>
+    </div>
+
     <div id="flash-overlay" class="flash"></div>
 
-    <div id="scanning-overlay">
-      <p>Point camera at the toaster image...</p>
+    <div id="scanning-overlay" class="hidden">
+      <p>Scanning for Toaster Target...</p>
     </div>
 
     <div id="ui-container">
       <button class="btn" id="zoomOut">Zoom -</button>
       <button class="btn" id="resetBtn">Reset</button>
       <button class="btn" id="screenshotBtn">📸 Photo</button>
-      <button class="btn" id="toggleMode">Switch to Vertical</button>
+      <button class="btn" id="toggleMode">Switch Vertical</button>
       <button class="btn" id="zoomIn">Zoom +</button>
     </div>
 
     <a-scene 
-      id="main
+      id="mainScene"
+      mindar-image="imageTargetSrc: ./toaster2.mind; autoStart: false; uiScanning: #scanning-overlay;" 
+      color-space="sRGB" 
+      renderer="colorManagement: true; preserveDrawingBuffer: true;" 
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false">
+      
+      <a-assets>
+        <a-asset-item id="arModelAsset" src="toaster.glb"></a-asset-item>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      <a-entity light="type: hemisphere; intensity: 2"></a-entity>
+      <a-entity light="type: directional; intensity: 1.5" position="-1 2 1"></a-entity>
+
+      <a-entity id="target" mindar-image-target="targetIndex: 0">
+        <a-gltf-model 
+          id="arModel"
+          src="#arModelAsset" 
+          rotation="90 0 0" 
+          position="0 0 0" 
+          scale="1 1 1"
+          animation-mixer> 
+        </a-gltf-model>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      const sceneEl = document.querySelector('#mainScene');
+      const startBtn = document.querySelector('#start-btn');
+      const launchScreen = document.querySelector('#launch-screen');
+      const overlay = document.querySelector('#scanning-overlay');
+      const targetEl = document.querySelector('#target');
+      const arModel = document.querySelector('#arModel');
+      const flash = document.querySelector('#flash-overlay');
+
+      // 1. START LOGIC
+      startBtn.addEventListener('click', () => {
+        launchScreen.style.display = 'none';
+        overlay.classList.remove('hidden');
+        
+        // Start MindAR
+        const arSystem = sceneEl.systems['mindar-image-system'];
+        arSystem.start(); 
+      });
+
+      // 2. AR EVENTS
+      targetEl.addEventListener("targetFound", () => { overlay.classList.add("hidden"); });
+      targetEl.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
+
+      // 3. TRANSFORM LOGIC
+      let isVertical = false;
+      let currentScale = 1.0;
+
+      document.querySelector('#toggleMode').addEventListener('click', () => {
+        isVertical = !isVertical;
+        arModel.setAttribute('rotation', isVertical ? '0 0 0' : '90 0 0');
+        document.querySelector('#toggleMode').innerText = isVertical ? "Switch Flat" : "Switch Vertical";
+      });
+
+      document.querySelector('#zoomIn').addEventListener('click', () => {
+        currentScale += 0.2;
+        arModel.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
+      });
+
+      document.querySelector('#zoomOut').addEventListener('click', () => {
+        currentScale = Math.max(0.1, currentScale - 0.2);
+        arModel.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
+      });
+
+      document.querySelector('#resetBtn').addEventListener('click', () => {
+        currentScale = 1.0;
+        arModel.setAttribute('scale', '1 1 1');
+        arModel.setAttribute('rotation', isVertical ? '0 0 0' : '90 0 0');
+      });
+
+      // 4. PHOTO LOGIC
+      document.querySelector('#screenshotBtn').addEventListener('click', () => {
+        flash.classList.add('active');
+        setTimeout(() => flash.classList.remove('active'), 300);
+
+        const video = document.querySelector('video');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        ctx.drawImage(video, 0, 0);
+        ctx.drawImage(sceneEl.renderer.domElement, 0, 0, canvas.width, canvas.height);
+
+        const link = document.createElement('a');
+        link.download = 'AR-Photo.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+
+      // Error Catching
+      sceneEl.addEventListener("arError", (e) => {
+        alert("Camera Error: Please ensure you are on HTTPS and have granted camera permissions.");
+      });
+    </script>
+  </body>
+</html>
