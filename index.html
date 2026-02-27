@@ -28,32 +28,13 @@
     </style>
 
     <script>
-      // --- MULTI-TARGET CONFIGURATION ---
-      const SCENE_CONFIG = {
-        mindFile: './targets.mind', // Path to your compiled .mind file
-      };
+      const SCENE_CONFIG = { mindFile: './targets.mind' };
 
       const TARGETS = [
-        {
-          name: "Trex",
-          modelSrc: "roar4.glb",
-          scale: "1 1 1",
-          pos: "0 0.1 0"
-        },
-        {
-          name: "Combine",
-          modelSrc: "combine.glb",
-          scale: "0.5 0.5 0.5",
-          pos: "0 0.2 0"
-        },
-        {
-          name: "Toaster",
-          modelSrc: "toaster.glb",
-          scale: "1.5 1.5 1.5",
-          pos: "0 0 0"
-        }
+        { name: "Trex", modelSrc: "roar4.glb", scale: "1 1 1", pos: "0 0.1 0" },
+        { name: "Combine", modelSrc: "combine.glb", scale: "0.5 0.5 0.5", pos: "0 0.2 0" },
+        { name: "Toaster", modelSrc: "toaster.glb", scale: "1.5 1.5 1.5", pos: "0 0 0" }
       ];
-      // ----------------------------------
 
       AFRAME.registerComponent('drag-rotate', {
         schema: { speed: {default: 2} },
@@ -81,93 +62,89 @@
   <body>
 
     <div id="scanning-overlay">
-      <p id="scanning-text">Scanning for targets...</p>
+      <p id="scanning-text">Loading Assets...</p>
     </div>
 
     <div id="ui-container">
-      <button class="btn" onclick="adjustZoom(-0.2)">Zoom -</button>
+      <button class="btn" id="zOut">Zoom -</button>
       <button class="btn" id="toggleMode">Switch Vertical</button>
-      <button class="btn" onclick="adjustZoom(0.2)">Zoom +</button>
+      <button class="btn" id="zIn">Zoom +</button>
     </div>
 
     <a-scene id="ar-scene"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiScanning: #scanning-overlay;"
       color-space="sRGB" 
       renderer="colorManagement: true, physicallyCorrectLights: true" 
       vr-mode-ui="enabled: false">
       
       <a-assets id="asset-container"></a-assets>
-
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       <a-entity light="type: hemisphere; intensity: 2.5"></a-entity>
       <a-entity light="type: directional; intensity: 1.5" position="-1 2 1"></a-entity>
-
-      <div id="target-anchor"></div>
-      
     </a-scene>
 
     <script>
-      const sceneEl = document.querySelector('#ar-scene');
+      const sceneEl = document.querySelector('a-scene');
       const assetContainer = document.querySelector('#asset-container');
-      const targetAnchor = document.querySelector('#target-anchor');
       const overlay = document.querySelector('#scanning-overlay');
       const scanText = document.querySelector('#scanning-text');
-      const toggleBtn = document.querySelector('#toggleMode');
-
       let isVertical = false;
 
-      // 1. Initialize Scene & Load Targets
-      sceneEl.setAttribute('mindar-image', `imageTargetSrc: ${SCENE_CONFIG.mindFile}; uiScanning: #scanning-overlay;`);
-      
-      let names = TARGETS.map(t => t.name).join(", ");
-      scanText.innerText = `Point camera at: \n ${names}`;
-
-      TARGETS.forEach((config, index) => {
-        // Create Asset
-        const asset = document.createElement('a-asset-item');
-        asset.setAttribute('id', `model-${index}`);
-        asset.setAttribute('src', config.modelSrc);
-        assetContainer.appendChild(asset);
-
-        // Create Entity
-        const entity = document.createElement('a-entity');
-        entity.setAttribute('mindar-image-target', `targetIndex: ${index}`);
+      // Initialize when scene is ready
+      sceneEl.addEventListener('loaded', () => {
+        console.log("AR Scene Loaded");
         
-        const model = document.createElement('a-gltf-model');
-        model.setAttribute('id', `active-model-${index}`);
-        model.setAttribute('src', `#model-${index}`);
-        model.setAttribute('rotation', '90 0 0');
-        model.setAttribute('position', config.pos);
-        model.setAttribute('scale', config.scale);
-        model.setAttribute('drag-rotate', '');
-        model.setAttribute('animation-mixer', '');
-        
-        // Material Fix
-        model.addEventListener('model-loaded', () => {
-          model.getObject3D('mesh').traverse(n => { if(n.isMesh) { n.material.metalness = 0; n.material.roughness = 1; }});
+        TARGETS.forEach((config, index) => {
+          // 1. Add Assets
+          const asset = document.createElement('a-asset-item');
+          asset.setAttribute('id', `model-${index}`);
+          asset.setAttribute('src', config.modelSrc);
+          assetContainer.appendChild(asset);
+
+          // 2. Create Target Entity
+          const target = document.createElement('a-entity');
+          target.setAttribute('mindar-image-target', `targetIndex: ${index}`);
+
+          // 3. Create Model
+          const model = document.createElement('a-gltf-model');
+          model.setAttribute('src', `#model-${index}`);
+          model.setAttribute('rotation', '90 0 0');
+          model.setAttribute('position', config.pos);
+          model.setAttribute('scale', config.scale);
+          model.setAttribute('drag-rotate', '');
+          model.setAttribute('animation-mixer', '');
+          
+          target.appendChild(model);
+          sceneEl.appendChild(target);
+
+          // Events
+          target.addEventListener("targetFound", () => { 
+            console.log("Found target: " + config.name);
+            overlay.classList.add("hidden"); 
+          });
+          target.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
         });
 
-        entity.appendChild(model);
-        targetAnchor.appendChild(entity);
-
-        // Visibility UI Logic
-        entity.addEventListener("targetFound", () => { overlay.classList.add("hidden"); });
-        entity.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
+        scanText.innerText = "Point camera at: " + TARGETS.map(t => t.name).join(", ");
       });
 
-      // Global Controls
-      window.adjustZoom = (amount) => {
+      // UI Controls
+      document.querySelector('#zIn').addEventListener('click', () => adjustZoom(0.2));
+      document.querySelector('#zOut').addEventListener('click', () => adjustZoom(-0.2));
+      
+      function adjustZoom(amount) {
         document.querySelectorAll('a-gltf-model').forEach(model => {
           let s = model.getAttribute('scale');
           model.setAttribute('scale', `${s.x + amount} ${s.y + amount} ${s.z + amount}`);
         });
-      };
+      }
 
-      toggleBtn.addEventListener('click', () => {
+      document.querySelector('#toggleMode').addEventListener('click', function() {
         isVertical = !isVertical;
+        this.innerText = isVertical ? "Switch Flat" : "Switch Vertical";
         document.querySelectorAll('a-gltf-model').forEach(model => {
           model.setAttribute('rotation', isVertical ? '0 0 0' : '90 0 0');
         });
-        toggleBtn.innerText = isVertical ? "Switch Flat" : "Switch Vertical";
       });
     </script>
   </body>
