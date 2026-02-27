@@ -28,14 +28,13 @@
     </style>
 
     <script>
-      const SCENE_CONFIG = { mindFile: './targets.mind' };
-
       const TARGETS = [
         { name: "Trex", modelSrc: "roar4.glb", scale: "1 1 1", pos: "0 0.1 0" },
         { name: "Combine", modelSrc: "combine.glb", scale: "0.5 0.5 0.5", pos: "0 0.2 0" },
         { name: "Toaster", modelSrc: "toaster.glb", scale: "1.5 1.5 1.5", pos: "0 0 0" }
       ];
 
+      // DRAG ROTATE
       AFRAME.registerComponent('drag-rotate', {
         schema: { speed: {default: 2} },
         init: function() {
@@ -62,7 +61,7 @@
   <body>
 
     <div id="scanning-overlay">
-      <p id="scanning-text">Loading Assets...</p>
+      <p id="scanning-text">Loading...</p>
     </div>
 
     <div id="ui-container">
@@ -72,7 +71,8 @@
     </div>
 
     <a-scene id="ar-scene"
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiScanning: #scanning-overlay;"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiScanning: #scanning-overlay; filterMinCF: 0.0001; filterBeta: 0.001;"
+      device-orientation-permission-ui="enabled: false"
       color-space="sRGB" 
       renderer="colorManagement: true, physicallyCorrectLights: true" 
       vr-mode-ui="enabled: false">
@@ -90,22 +90,16 @@
       const scanText = document.querySelector('#scanning-text');
       let isVertical = false;
 
-      // Initialize when scene is ready
       sceneEl.addEventListener('loaded', () => {
-        console.log("AR Scene Loaded");
-        
         TARGETS.forEach((config, index) => {
-          // 1. Add Assets
           const asset = document.createElement('a-asset-item');
           asset.setAttribute('id', `model-${index}`);
           asset.setAttribute('src', config.modelSrc);
           assetContainer.appendChild(asset);
 
-          // 2. Create Target Entity
           const target = document.createElement('a-entity');
           target.setAttribute('mindar-image-target', `targetIndex: ${index}`);
 
-          // 3. Create Model
           const model = document.createElement('a-gltf-model');
           model.setAttribute('src', `#model-${index}`);
           model.setAttribute('rotation', '90 0 0');
@@ -117,20 +111,15 @@
           target.appendChild(model);
           sceneEl.appendChild(target);
 
-          // Events
-          target.addEventListener("targetFound", () => { 
-            console.log("Found target: " + config.name);
-            overlay.classList.add("hidden"); 
-          });
+          target.addEventListener("targetFound", () => { overlay.classList.add("hidden"); });
           target.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
         });
-
         scanText.innerText = "Point camera at: " + TARGETS.map(t => t.name).join(", ");
       });
 
-      // UI Controls
-      document.querySelector('#zIn').addEventListener('click', () => adjustZoom(0.2));
-      document.querySelector('#zOut').addEventListener('click', () => adjustZoom(-0.2));
+      // Zoom & Toggle Logic
+      document.querySelector('#zIn').addEventListener('click', () => adjustZoom(0.1));
+      document.querySelector('#zOut').addEventListener('click', () => adjustZoom(-0.1));
       
       function adjustZoom(amount) {
         document.querySelectorAll('a-gltf-model').forEach(model => {
