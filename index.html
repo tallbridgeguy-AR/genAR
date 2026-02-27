@@ -1,89 +1,4 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
-    
-    <style>
-      body { margin: 0; overflow: hidden; }
-      #scanning-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
-        color: white; font-family: sans-serif; z-index: 99; text-align: center;
-      }
-      #scanning-overlay.hidden { display: none !important; }
-      #ui-container {
-        position: fixed; bottom: 20px; left: 50%;
-        transform: translateX(-50%); z-index: 100;
-        display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 90%;
-      }
-      .btn {
-        background: rgba(0, 0, 0, 0.7); color: white; border: 2px solid white;
-        padding: 12px 18px; border-radius: 30px; font-family: sans-serif;
-        font-weight: bold; cursor: pointer; font-size: 14px;
-      }
-    </style>
-
-    <script>
-      const TARGETS = [
-        { name: "Trex", modelSrc: "roar4.glb", scale: "1 1 1", pos: "0 0.1 0" },
-        { name: "Combine", modelSrc: "combine.glb", scale: "0.5 0.5 0.5", pos: "0 0.2 0" },
-        { name: "Toaster", modelSrc: "toastlight.glb", scale: "1.5 1.5 1.5", pos: "0 0 0" }
-      ];
-
-      // DRAG ROTATE
-      AFRAME.registerComponent('drag-rotate', {
-        schema: { speed: {default: 2} },
-        init: function() {
-          this.ifMouseDown = false; this.x_cord = 0;
-          const handleStart = (x) => { this.ifMouseDown = true; this.x_cord = x; };
-          const handleEnd = () => { this.ifMouseDown = false; };
-          const handleMove = (x) => {
-            if(this.ifMouseDown) {
-              let temp_x = x - this.x_cord;
-              this.el.object3D.rotateY(temp_x * (this.data.speed / 1000));
-              this.x_cord = x;
-            }
-          };
-          document.addEventListener('mousedown', (e) => handleStart(e.clientX));
-          document.addEventListener('touchstart', (e) => handleStart(e.touches[0].clientX));
-          document.addEventListener('mouseup', handleEnd);
-          document.addEventListener('touchend', handleEnd);
-          document.addEventListener('mousemove', (e) => handleMove(e.clientX));
-          document.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX));
-        }
-      });
-    </script>
-  </head>
-  <body>
-
-    <div id="scanning-overlay">
-      <p id="scanning-text">Loading...</p>
-    </div>
-
-    <div id="ui-container">
-      <button class="btn" id="zOut">Zoom -</button>
-      <button class="btn" id="toggleMode">Switch Vertical</button>
-      <button class="btn" id="zIn">Zoom +</button>
-    </div>
-
-    <a-scene id="ar-scene"
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiScanning: #scanning-overlay; filterMinCF: 0.0001; filterBeta: 0.001;"
-      device-orientation-permission-ui="enabled: false"
-      color-space="sRGB" 
-      renderer="colorManagement: true, physicallyCorrectLights: true" 
-      vr-mode-ui="enabled: false">
-      
-      <a-assets id="asset-container"></a-assets>
-      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-      <a-entity light="type: hemisphere; intensity: 2.5"></a-entity>
-      <a-entity light="type: directional; intensity: 1.5" position="-1 2 1"></a-entity>
-    </a-scene>
-
-    <script>
+<script>
       const sceneEl = document.querySelector('a-scene');
       const assetContainer = document.querySelector('#asset-container');
       const overlay = document.querySelector('#scanning-overlay');
@@ -108,6 +23,21 @@
           model.setAttribute('drag-rotate', '');
           model.setAttribute('animation-mixer', '');
           
+          // --- THE TOASTER COLOR FIX ---
+          model.addEventListener('model-loaded', () => {
+            const mesh = model.getObject3D('mesh');
+            mesh.traverse((node) => {
+              if (node.isMesh) {
+                // This stops shiny models from turning black
+                node.material.metalness = 0; 
+                node.material.roughness = 1;
+                // Ensure colors aren't being washed out
+                node.material.needsUpdate = true;
+              }
+            });
+            console.log("Model loaded and materials adjusted for: " + config.name);
+          });
+
           target.appendChild(model);
           sceneEl.appendChild(target);
 
@@ -117,7 +47,7 @@
         scanText.innerText = "Point camera at: " + TARGETS.map(t => t.name).join(", ");
       });
 
-      // Zoom & Toggle Logic
+      // UI Controls (Zoom & Rotation)
       document.querySelector('#zIn').addEventListener('click', () => adjustZoom(0.1));
       document.querySelector('#zOut').addEventListener('click', () => adjustZoom(-0.1));
       
@@ -136,5 +66,3 @@
         });
       });
     </script>
-  </body>
-</html>
