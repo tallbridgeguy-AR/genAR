@@ -8,8 +8,6 @@
     
     <style>
       body { margin: 0; overflow: hidden; }
-      
-      /* THE SCANNING SCREEN */
       #scanning-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.8);
@@ -17,8 +15,6 @@
         color: white; font-family: sans-serif; z-index: 99;
       }
       #scanning-overlay.hidden { display: none !important; }
-
-      /* THE UI BUTTONS */
       #ui-container {
         position: fixed; bottom: 20px; left: 50%;
         transform: translateX(-50%); z-index: 100;
@@ -35,7 +31,16 @@
     </style>
 
     <script>
-      // DRAG ROTATE COMPONENT
+      // --- CONFIGURATION: CHANGE THESE VALUES ONLY ---
+      const CONFIG = {
+        mindFile: './farm.mind',      // Path to your .mind file
+        glbModel: 'combine.glb',     // Path to your .glb model
+        targetName: 'Farm Image',    // Name shown on the scanning screen
+        initialScale: '1.0 1.0 1.0', // Starting size
+        initialPos: '0 0.1 0'        // Starting position
+      };
+      // ----------------------------------------------
+
       AFRAME.registerComponent('drag-rotate', {
         schema: { speed: {default: 2} },
         init: function() {
@@ -63,7 +68,7 @@
   <body>
 
     <div id="scanning-overlay">
-      <p>Point camera at the Toaster image...</p>
+      <p id="scanning-text">Point camera at the image...</p>
     </div>
 
     <div id="ui-container">
@@ -73,15 +78,14 @@
       <button class="btn" id="zoomIn">Zoom +</button>
     </div>
 
-    <a-scene 
-      mindar-image="imageTargetSrc: ./farm.mind; uiScanning: #scanning-overlay; filterMinCF: 0.0001; filterBeta: 0.001;" 
+    <a-scene id="ar-scene"
       color-space="sRGB" 
       renderer="colorManagement: true, physicallyCorrectLights: true" 
       vr-mode-ui="enabled: false" 
       device-orientation-permission-ui="enabled: false">
       
       <a-assets>
-        <a-asset-item id="combineModel" src="combine.glb"></a-asset-item>
+        <a-asset-item id="dynamicModel" src=""></a-asset-item>
       </a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -90,11 +94,11 @@
 
       <a-entity id="target" mindar-image-target="targetIndex: 0">
         <a-gltf-model 
-          id="combine"
-          src="#combineModel" 
+          id="modelEl"
+          src="#dynamicModel" 
           rotation="90 0 0" 
           position="0 0.1 0" 
-          scale="1.0 1.0 1.0"
+          scale="1 1 1"
           animation-mixer
           drag-rotate> 
         </a-gltf-model>
@@ -103,69 +107,67 @@
     </a-scene>
 
     <script>
+      // APPLY CONFIG TO SCENE
+      const sceneEl = document.querySelector('#ar-scene');
+      const modelEl = document.querySelector('#modelEl');
+      const assetItem = document.querySelector('#dynamicModel');
+      const scanText = document.querySelector('#scanning-text');
+
+      // Inject config values
+      sceneEl.setAttribute('mindar-image', `imageTargetSrc: ${CONFIG.mindFile}; uiScanning: #scanning-overlay; filterMinCF: 0.0001; filterBeta: 0.001;`);
+      assetItem.setAttribute('src', CONFIG.glbModel);
+      modelEl.setAttribute('scale', CONFIG.initialScale);
+      modelEl.setAttribute('position', CONFIG.initialPos);
+      scanText.innerText = `Point camera at the ${CONFIG.targetName}...`;
+
+      // LOGIC CONTROLS
       const targetEl = document.querySelector('#target');
       const overlay = document.querySelector('#scanning-overlay');
-      const combine = document.querySelector('#combine');
-      
       const toggleBtn = document.querySelector('#toggleMode');
       const resetBtn = document.querySelector('#resetBtn');
       const zoomInBtn = document.querySelector('#zoomIn');
       const zoomOutBtn = document.querySelector('#zoomOut');
 
-      // Hide/Show scanning overlay
       targetEl.addEventListener("targetFound", () => { overlay.classList.add("hidden"); });
       targetEl.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
 
-      // TRACKING STATE
       let isVertical = false;
       let currentScale = 1.0;
       const zoomStep = 0.2;
 
-      // 1. TOGGLE ORIENTATION
       toggleBtn.addEventListener('click', () => {
         isVertical = !isVertical;
         if (isVertical) {
-          combine.setAttribute('rotation', '0 0 0');
-          combine.setAttribute('position', '0 0.1 0'); 
+          modelEl.setAttribute('rotation', '0 0 0');
           toggleBtn.innerText = "Switch to Flat";
         } else {
-          combine.setAttribute('rotation', '90 0 0');
-          combine.setAttribute('position', '0 0.5 0');
+          modelEl.setAttribute('rotation', '90 0 0');
           toggleBtn.innerText = "Switch to Vertical";
         }
       });
 
-      // 2. ZOOM IN
       zoomInBtn.addEventListener('click', () => {
         currentScale += zoomStep;
-        combine.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
+        modelEl.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
       });
 
-      // 3. ZOOM OUT
       zoomOutBtn.addEventListener('click', () => {
         currentScale = Math.max(0.2, currentScale - zoomStep);
-        combine.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
+        modelEl.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
       });
 
-      // 4. RESET
       resetBtn.addEventListener('click', () => {
         currentScale = 1.0;
-        combine.setAttribute('scale', '1 1 1');
-        if (isVertical) {
-          combine.setAttribute('rotation', '0 0 0');
-        } else {
-          combine.setAttribute('rotation', '90 0 0');
-        }
+        modelEl.setAttribute('scale', CONFIG.initialScale);
+        modelEl.setAttribute('rotation', isVertical ? '0 0 0' : '90 0 0');
       });
 
-      // MATERIAL FIX
-      combine.addEventListener('model-loaded', () => {
-        const mesh = combine.getObject3D('mesh');
+      modelEl.addEventListener('model-loaded', () => {
+        const mesh = modelEl.getObject3D('mesh');
         mesh.traverse((node) => {
           if (node.isMesh) {
             node.material.metalness = 0;
             node.material.roughness = 1;
-            node.material.transparent = false;
           }
         });
       });
