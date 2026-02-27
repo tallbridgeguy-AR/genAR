@@ -12,40 +12,53 @@
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.8);
         display: flex; flex-direction: column; justify-content: center; align-items: center;
-        color: white; font-family: sans-serif; z-index: 99;
+        color: white; font-family: sans-serif; z-index: 99; text-align: center;
       }
       #scanning-overlay.hidden { display: none !important; }
       #ui-container {
         position: fixed; bottom: 20px; left: 50%;
         transform: translateX(-50%); z-index: 100;
-        display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
-        width: 90%;
+        display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 90%;
       }
       .btn {
         background: rgba(0, 0, 0, 0.7); color: white; border: 2px solid white;
         padding: 12px 18px; border-radius: 30px; font-family: sans-serif;
-        font-weight: bold; cursor: pointer; -webkit-tap-highlight-color: transparent;
-        font-size: 14px;
+        font-weight: bold; cursor: pointer; font-size: 14px;
       }
-      .btn:active { background: white; color: black; }
     </style>
 
     <script>
-      // --- CONFIGURATION: CHANGE THESE VALUES ONLY ---
-      const CONFIG = {
-        mindFile: './toaster2.mind',      // Path to your .mind file
-        glbModel: 'toaster.glb',     // Path to your .glb model
-        targetName: 'Toaster Image',    // Name shown on the scanning screen
-        initialScale: '1.0 1.0 1.0', // Starting size
-        initialPos: '0 0.1 0'        // Starting position
+      // --- MULTI-TARGET CONFIGURATION ---
+      const SCENE_CONFIG = {
+        mindFile: './targets.mind', // Path to your compiled .mind file
       };
-      // ----------------------------------------------
+
+      const TARGETS = [
+        {
+          name: "Combine Harvester",
+          modelSrc: "combine.glb",
+          scale: "1 1 1",
+          pos: "0 0.1 0"
+        },
+        {
+          name: "Tractor",
+          modelSrc: "tractor.glb",
+          scale: "0.5 0.5 0.5",
+          pos: "0 0.2 0"
+        },
+        {
+          name: "Barn",
+          modelSrc: "barn.glb",
+          scale: "1.5 1.5 1.5",
+          pos: "0 0 0"
+        }
+      ];
+      // ----------------------------------
 
       AFRAME.registerComponent('drag-rotate', {
         schema: { speed: {default: 2} },
         init: function() {
-          this.ifMouseDown = false;
-          this.x_cord = 0;
+          this.ifMouseDown = false; this.x_cord = 0;
           const handleStart = (x) => { this.ifMouseDown = true; this.x_cord = x; };
           const handleEnd = () => { this.ifMouseDown = false; };
           const handleMove = (x) => {
@@ -68,108 +81,93 @@
   <body>
 
     <div id="scanning-overlay">
-      <p id="scanning-text">Point camera at the image...</p>
+      <p id="scanning-text">Scanning for targets...</p>
     </div>
 
     <div id="ui-container">
-      <button class="btn" id="zoomOut">Zoom -</button>
-      <button class="btn" id="resetBtn">Reset</button>
-      <button class="btn" id="toggleMode">Switch to Vertical</button>
-      <button class="btn" id="zoomIn">Zoom +</button>
+      <button class="btn" onclick="adjustZoom(-0.2)">Zoom -</button>
+      <button class="btn" id="toggleMode">Switch Vertical</button>
+      <button class="btn" onclick="adjustZoom(0.2)">Zoom +</button>
     </div>
 
     <a-scene id="ar-scene"
       color-space="sRGB" 
       renderer="colorManagement: true, physicallyCorrectLights: true" 
-      vr-mode-ui="enabled: false" 
-      device-orientation-permission-ui="enabled: false">
+      vr-mode-ui="enabled: false">
       
-      <a-assets>
-        <a-asset-item id="dynamicModel" src=""></a-asset-item>
-      </a-assets>
+      <a-assets id="asset-container"></a-assets>
 
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-      <a-entity light="type: hemisphere; intensity: 3"></a-entity>
-      <a-entity light="type: directional; intensity: 2" position="-1 2 1"></a-entity>
+      <a-entity light="type: hemisphere; intensity: 2.5"></a-entity>
+      <a-entity light="type: directional; intensity: 1.5" position="-1 2 1"></a-entity>
 
-      <a-entity id="target" mindar-image-target="targetIndex: 0">
-        <a-gltf-model 
-          id="modelEl"
-          src="#dynamicModel" 
-          rotation="90 0 0" 
-          position="0 0.1 0" 
-          scale="1 1 1"
-          animation-mixer
-          drag-rotate> 
-        </a-gltf-model>
-      </a-entity>
+      <div id="target-anchor"></div>
       
     </a-scene>
 
     <script>
-      // APPLY CONFIG TO SCENE
       const sceneEl = document.querySelector('#ar-scene');
-      const modelEl = document.querySelector('#modelEl');
-      const assetItem = document.querySelector('#dynamicModel');
-      const scanText = document.querySelector('#scanning-text');
-
-      // Inject config values
-      sceneEl.setAttribute('mindar-image', `imageTargetSrc: ${CONFIG.mindFile}; uiScanning: #scanning-overlay; filterMinCF: 0.0001; filterBeta: 0.001;`);
-      assetItem.setAttribute('src', CONFIG.glbModel);
-      modelEl.setAttribute('scale', CONFIG.initialScale);
-      modelEl.setAttribute('position', CONFIG.initialPos);
-      scanText.innerText = `Point camera at the ${CONFIG.targetName}...`;
-
-      // LOGIC CONTROLS
-      const targetEl = document.querySelector('#target');
+      const assetContainer = document.querySelector('#asset-container');
+      const targetAnchor = document.querySelector('#target-anchor');
       const overlay = document.querySelector('#scanning-overlay');
+      const scanText = document.querySelector('#scanning-text');
       const toggleBtn = document.querySelector('#toggleMode');
-      const resetBtn = document.querySelector('#resetBtn');
-      const zoomInBtn = document.querySelector('#zoomIn');
-      const zoomOutBtn = document.querySelector('#zoomOut');
-
-      targetEl.addEventListener("targetFound", () => { overlay.classList.add("hidden"); });
-      targetEl.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
 
       let isVertical = false;
-      let currentScale = 1.0;
-      const zoomStep = 0.2;
+
+      // 1. Initialize Scene & Load Targets
+      sceneEl.setAttribute('mindar-image', `imageTargetSrc: ${SCENE_CONFIG.mindFile}; uiScanning: #scanning-overlay;`);
+      
+      let names = TARGETS.map(t => t.name).join(", ");
+      scanText.innerText = `Point camera at: \n ${names}`;
+
+      TARGETS.forEach((config, index) => {
+        // Create Asset
+        const asset = document.createElement('a-asset-item');
+        asset.setAttribute('id', `model-${index}`);
+        asset.setAttribute('src', config.modelSrc);
+        assetContainer.appendChild(asset);
+
+        // Create Entity
+        const entity = document.createElement('a-entity');
+        entity.setAttribute('mindar-image-target', `targetIndex: ${index}`);
+        
+        const model = document.createElement('a-gltf-model');
+        model.setAttribute('id', `active-model-${index}`);
+        model.setAttribute('src', `#model-${index}`);
+        model.setAttribute('rotation', '90 0 0');
+        model.setAttribute('position', config.pos);
+        model.setAttribute('scale', config.scale);
+        model.setAttribute('drag-rotate', '');
+        model.setAttribute('animation-mixer', '');
+        
+        // Material Fix
+        model.addEventListener('model-loaded', () => {
+          model.getObject3D('mesh').traverse(n => { if(n.isMesh) { n.material.metalness = 0; n.material.roughness = 1; }});
+        });
+
+        entity.appendChild(model);
+        targetAnchor.appendChild(entity);
+
+        // Visibility UI Logic
+        entity.addEventListener("targetFound", () => { overlay.classList.add("hidden"); });
+        entity.addEventListener("targetLost", () => { overlay.classList.remove("hidden"); });
+      });
+
+      // Global Controls
+      window.adjustZoom = (amount) => {
+        document.querySelectorAll('a-gltf-model').forEach(model => {
+          let s = model.getAttribute('scale');
+          model.setAttribute('scale', `${s.x + amount} ${s.y + amount} ${s.z + amount}`);
+        });
+      };
 
       toggleBtn.addEventListener('click', () => {
         isVertical = !isVertical;
-        if (isVertical) {
-          modelEl.setAttribute('rotation', '0 0 0');
-          toggleBtn.innerText = "Switch to Flat";
-        } else {
-          modelEl.setAttribute('rotation', '90 0 0');
-          toggleBtn.innerText = "Switch to Vertical";
-        }
-      });
-
-      zoomInBtn.addEventListener('click', () => {
-        currentScale += zoomStep;
-        modelEl.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
-      });
-
-      zoomOutBtn.addEventListener('click', () => {
-        currentScale = Math.max(0.2, currentScale - zoomStep);
-        modelEl.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
-      });
-
-      resetBtn.addEventListener('click', () => {
-        currentScale = 1.0;
-        modelEl.setAttribute('scale', CONFIG.initialScale);
-        modelEl.setAttribute('rotation', isVertical ? '0 0 0' : '90 0 0');
-      });
-
-      modelEl.addEventListener('model-loaded', () => {
-        const mesh = modelEl.getObject3D('mesh');
-        mesh.traverse((node) => {
-          if (node.isMesh) {
-            node.material.metalness = 0;
-            node.material.roughness = 1;
-          }
+        document.querySelectorAll('a-gltf-model').forEach(model => {
+          model.setAttribute('rotation', isVertical ? '0 0 0' : '90 0 0');
         });
+        toggleBtn.innerText = isVertical ? "Switch Flat" : "Switch Vertical";
       });
     </script>
   </body>
